@@ -1,6 +1,6 @@
 import { AfterViewChecked, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { ChatService } from '../chat.service';
-import { Client, ConnectionState, Conversation, Message, Participant, User, UserUpdateReason } from '@twilio/conversations';
+import { Client, ConnectionState, Conversation, Message, Participant } from '@twilio/conversations';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -16,8 +16,7 @@ export class ChatsComponent implements OnInit, OnDestroy, AfterViewChecked {
   isLoading: boolean;
   newUser: string;
 
-  chatList: Array<any> = [];
-  chatListMeta: Array<{ sid: string, unreadCount: number, lastMessage: string }> = [];
+  chatList: Array<{chat:Conversation,unreadCount: number, lastMessage: string }> = [];
   messages: Array<Message> = [];
   message: string;
   error: string;
@@ -36,20 +35,6 @@ export class ChatsComponent implements OnInit, OnDestroy, AfterViewChecked {
   ngOnInit(): void {
     this.currentTime = new Date();
     this.connectTwilio();
-  }
-
-  getToken() {
-    return this.chatService.getToken(this.userName);
-  }
-
-  ngAfterViewChecked() {
-    this.scrollToBottom();
-  }
-
-  scrollToBottom(): void {
-    try {
-      this.myScrollContainer.nativeElement.scrollTop = this.myScrollContainer.nativeElement.scrollHeight;
-    } catch (err) { }
   }
 
   connectTwilio() {
@@ -97,14 +82,12 @@ export class ChatsComponent implements OnInit, OnDestroy, AfterViewChecked {
         if (conv.dateCreated && conv.dateCreated > this.currentTime) {
           console.log('Conversation added', conv);
           await conv.setAllMessagesUnread();
-          this.chatList = this.chatList.concat(conv);
-          setTimeout(async () => {
-            this.chatListMeta = [{
-              sid: conv.sid,
-              unreadCount: await conv.getUnreadMessagesCount(),
-              lastMessage: (await conv.getMessages()).items[conv.lastReadMessageIndex].body
-            }, ...this.chatListMeta];
-          }, 500);
+          let newChat = {
+            chat: conv,
+            unreadCount: 0,
+            lastMessage: ''
+          }
+          this.chatList = [newChat,...this.chatList];
         }
       }, 500);
     });
@@ -114,20 +97,20 @@ export class ChatsComponent implements OnInit, OnDestroy, AfterViewChecked {
       if (this.currentConversation && this.currentConversation.sid === msg.conversation.sid) {
         this.messages.push(msg);
         await this.currentConversation.updateLastReadMessageIndex(msg.index);
-        this.chatListMeta = this.chatListMeta.map(el => {
-          if (el.sid == this.currentConversation.sid) {
+        this.chatList = this.chatList.map(el => {
+          if(el.chat.sid === this.currentConversation.sid){
             el.lastMessage = msg.body;
           }
           return el;
-        })
+        });
       } else {
-        this.chatListMeta = this.chatListMeta.map(el => {
-          if (el.sid == msg.conversation.sid) {
+        this.chatList = this.chatList.map(el => {
+          if(el.chat.sid === msg.conversation.sid){
             el.lastMessage = msg.body;
             el.unreadCount++;
           }
           return el;
-        })
+        });
       }
     });
 
@@ -145,15 +128,15 @@ export class ChatsComponent implements OnInit, OnDestroy, AfterViewChecked {
   fetchUserChats() {
     this.isLoading = true;
     this.client.getSubscribedConversations().then(convs => {
-      this.chatList = [...convs.items, ...this.chatList];
-      this.chatList.forEach(async (chat) => {
-        this.chatListMeta.push({
-          sid: chat.sid,
+      let chats:any = [...convs.items];
+      chats.forEach( async (chat:Conversation) => {
+        let obj = {
+          chat: chat,
           unreadCount: await chat.getUnreadMessagesCount(),
           lastMessage: (await chat.getMessages()).items[chat.lastReadMessageIndex || 0].body
-        });
-      });
-
+        }
+        this.chatList.push(obj);
+      })
       this.isLoading = false;
     }).catch(error => console.log(error));
   }
@@ -174,8 +157,6 @@ export class ChatsComponent implements OnInit, OnDestroy, AfterViewChecked {
           await channel.setAllMessagesUnread();
           channel.add(this.newUser).then(() => {
             this.currentConversation = channel;
-            this.message = `-- ${this.userName} created a new chat --`;
-            this.sendMessage();
             this.openChat(channel);
             this.scrollToBottom();
             this.isLoading = false;
@@ -205,8 +186,8 @@ export class ChatsComponent implements OnInit, OnDestroy, AfterViewChecked {
       if (!skip) {
         let resetTo = this.messages.length >= 1 ? this.messages[this.messages.length - 1].index : 0;
         await this.currentConversation.updateLastReadMessageIndex(resetTo);
-        this.chatListMeta = this.chatListMeta.map(el => {
-          if (el.sid == this.currentConversation.sid) {
+        this.chatList = this.chatList.map( el => {
+          if(el.chat.sid == this.currentConversation.sid){
             el.unreadCount = 0;
           }
           return el;
@@ -223,8 +204,18 @@ export class ChatsComponent implements OnInit, OnDestroy, AfterViewChecked {
     if (this.messages[0].index > 0) this.fetchMessages(this.messages[0].index - 1);
   }
 
-  getCounts() {
-    return this.currentConversation.lastMessage ? this.currentConversation.lastMessage.index : 0;
+  getToken() {
+    return this.chatService.getToken(this.userName);
+  }
+
+  ngAfterViewChecked() {
+    this.scrollToBottom();
+  }
+
+  scrollToBottom(): void {
+    try {
+      this.myScrollContainer.nativeElement.scrollTop = this.myScrollContainer.nativeElement.scrollHeight;
+    } catch (err) { }
   }
 
   ngOnDestroy(): void {

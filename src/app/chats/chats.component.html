@@ -1,0 +1,130 @@
+<div class="main-block row">
+  <div class="col-md-4">
+    <div class="chat-lists">
+      <div class="filter d-flex">
+        <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#newChatModal" type="button">Create
+          New
+          Chat</button>
+      </div>
+      <ul class="list-group" *ngIf="chatList.length > 0">
+        <li class="list-group-item d-flex justify-content-between align-items-start"
+          *ngFor="let chat of chatList; let i = index" (click)="openChat(chat)"
+          [ngClass]="{'active': chat?.sid === currentConversation?.sid}">
+          <div class="profile">{{ chat.friendlyName.charAt(0).toUpperCase()}}</div>
+          <div class="ms-2 me-auto">
+            <div class="fw-bold">{{ chat.friendlyName }}</div>
+            <span class="mb-2"> {{ chatListMeta[i]?.lastMessage || ''}} </span>
+            <div class="date-time"> {{ chat?.lastMessage ? (chat.lastMessage.dateCreated | date: 'shortTime') : ''}}
+            </div>
+          </div>
+          <span class="badge bg-warning rounded-pill" *ngIf="chatListMeta[i]?.unreadCount > 0">{{
+            chatListMeta[i]?.unreadCount }}</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="chat-area">
+      <div class="no-chat-item text-info" *ngIf="!currentConversation else chatArea">
+        <span>Please select person to chat or create new chat</span>
+      </div>
+      <ng-template #chatArea>
+        <div class="chat-box">
+          <div class="message-area">
+            <div class="chat-header d-flex justify-content-between">
+              <div class="chat-info">
+                <div class="profile">{{ newUser ? (newUser.charAt(0).toUpperCase()) :
+                  currentConversation?.friendlyName?.charAt(0).toUpperCase() }}</div>
+                <span>{{ currentConversation.friendlyName }}</span>
+              </div>
+              <button type="button" class="btn-close" aria-label="Close" (click)="currentConversation = null"></button>
+            </div>
+            <div class="no-messages" *ngIf="messages?.length < 0 else messageBox">
+              <span>No messages yet!</span>
+              <p>Send the first message from below</p>
+            </div>
+            <ng-template #messageBox>
+              <div class="p-2 msg-block" #chatBox infiniteScroll [scrollWindow]="false" [fromRoot]="true"
+                [infiniteScrollUpDistance]="3" [infiniteScrollThrottle]="50" (scrolledUp)="loadMessages()">
+                <div class="messanger-chat-row" *ngFor="let message of messages;let i = index">
+                  <div class="right-chat d-flex" *ngIf="userName === message?.author">
+                    <div class="d-flex">
+                      <div class="user-message-content">
+                        <div class="user-message-bg">
+                          <div class="chat-text">
+                            {{ message?.body }}
+                          </div>
+                        </div>
+                        <div class="msg-date d-flex justify-content-end">{{ message?.dateUpdated | date: 'd.MM.YYYY hh:mm' }}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="profile">
+                      <span>{{message?.author?.charAt(0).toUpperCase()}}</span>
+                    </div>
+                  </div>
+                  <div class="left-chat d-flex" *ngIf="userName != message?.author">
+                    <div class="d-flex">
+                      <div class="profile">
+                        <span>{{message?.author?.charAt(0).toUpperCase()}}</span>
+                      </div>
+                      <div class="user-message-content">
+                        <div class="user-message-bg">
+                          <div class="chat-text gray-l">
+                            {{ message?.body }}
+                          </div>
+                        </div>
+                        <div class="msg-date d-flex justify-content-start">{{ message?.dateUpdated | date: 'd.MM.YYYY hh:mm' }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ng-template>
+          </div>
+          <div class="send-block">
+            <textarea class="form-control" [(ngModel)]="message" name="chat-message" id="txt-send" rows="3"
+              placeholder="Type something..." (keydown)="currentConversation.typing()"></textarea>
+            <button type="button" class="btn btn-primary" (click)="message.trim() && sendMessage()">Send</button>
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+</div>
+
+<div class="text-center loader" *ngIf="isLoading">
+  <div class="spinner-border text-info" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+</div>
+
+<div class="alert alert-danger" role="alert" *ngIf="error">
+  {{error}}
+</div>
+<div class="alert alert-warning" role="alert" *ngIf="isTyping">
+  Typing...
+</div>
+
+<!-- Modal for new chat -->
+<div class="modal" tabindex="-1" id="newChatModal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">New Chat</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <span>User Name:</span>
+        <input class="form-control me-2" type="text" name="user-id" placeholder="Enter username" [(ngModel)]="newUser"
+          required>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal"
+          (click)="newUser.trim() && newChat()">Chat</button>
+      </div>
+    </div>
+  </div>
+</div>
